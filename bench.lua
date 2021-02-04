@@ -11,7 +11,10 @@ do
     file:close()
 end
 
-local function format(t) return t * 1000 .. "ms" end
+local iterations = 100000
+
+local sformat = string.format
+local function format(t) return sformat("%dns", t / iterations * 1e9) end
 
 local clock = os.clock
 for i, o in pairs(tests.encode) do
@@ -20,9 +23,10 @@ for i, o in pairs(tests.encode) do
         print("\tResult: PASS")
 
         local start = clock()
-        for i = 1, 10000 do encode(i) end
+        for i = 1, iterations do encode(i) end
 
-        print("\tRan 10000 iterations in " .. format(clock() - start))
+        print("\tEach iteration of " .. iterations .. " iterations took " ..
+                  format(clock() - start))
     else
         print("\tResult: FAILURE")
     end
@@ -36,9 +40,10 @@ for i, o in pairs(tests.decode) do
         print("\tResult: PASS")
 
         local start = clock()
-        for i = 1, 10000 do decode(i) end
+        for i = 1, iterations do decode(i) end
 
-        print("\tRan 10000 iterations in " .. format(clock() - start))
+        print("\tEach iteration of " .. iterations .. " iterations took " ..
+                  format(clock() - start))
     else
         print("\tResult: FAILURE")
     end
