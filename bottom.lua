@@ -1,29 +1,21 @@
 local byte, char, gsub, gmatch = string.byte, string.char, string.gsub,
                                  string.gmatch
 
--- Replace GETGLOBAL with GETUPVAL instructions, the latter doesn't involve indexing the global table
-local pairs, assert = pairs, assert
+local pairs, error = pairs, error
 
 local CHARACTER_VALUES = {
-    {1, ","}, {5, "🥺"}, {10, "✨"}, {50, "💖"}, {200, "🫂"}
+    {200, "🫂"}, {50, "💖"}, {10, "✨"}, {5, "🥺"}, {1, ","}
 }
 
--- Next variable is calculated when this module is loaded
--- {[1] = ",", [5] = "🥺", ...}
-local CHARACTER_VALUES_LOOKUPIFIED =
-    (function(CHARACTER_VALUES) -- Having a local like this saves a GETUPVAL instruction
-        local r = {}
-        for _, v in pairs(CHARACTER_VALUES) do r[v[2]] = v[1] end
-        return r
-    end)(CHARACTER_VALUES)
-
-local function encodeChar(charValue)
-    if charValue == 0 then return "" end
-    local val, currentCase
+local function encodeChar(charValue, nested)
+    if charValue == 0 then return nested and "" or "❤️" end
     for _, v in pairs(CHARACTER_VALUES) do
-        if charValue >= v[1] then val, currentCase = v[1], v[2] end
+        if charValue >= v[1] then
+            -- val, currentCase = v[1], v[2]
+            -- return currentCase .. encodeChar(charValue - val)
+            return v[2] .. encodeChar(charValue - v[1], true)
+        end
     end
-    return currentCase .. encodeChar(charValue - val)
 end
 
 local function encode(value)
@@ -34,30 +26,33 @@ local function encode(value)
     return result
 end
 
+local CHARACTER_VALUES_LOOKUPIFIED = {
+    ["🫂"] = 200,
+    ["💖"] = 50,
+    ["✨"] = 10,
+    ["🥺"] = 5,
+    [","] = 1,
+    ["❤"] = 0
+}
+
+local concat = table.concat
+local function fmt(chr) return concat({byte(chr, 1, -1)}, ", ") end
+
 local function decode(value)
     local result = gsub(value, "(.-)👉👈", function(c)
         -- https://stackoverflow.com/questions/13235091/extract-the-first-letter-of-a-utf-8-string-with-lua
         local code = 0
-        for char in gmatch(c, "[%z\1-\127\194-\244][\128-\191]*") do
-            local value = CHARACTER_VALUES_LOOKUPIFIED[char]
-            assert(value, "Invalid bottom text: '" .. char .. "'")
-            code = code + value
+        for char in gmatch(gsub(c, "❤️", "❤"),
+                           "[%z\1-\127\194-\244][\128-\191]*") do
+            code = code + (CHARACTER_VALUES_LOOKUPIFIED[char] or
+                       error("No such bottom character `" .. char .. "`<" ..
+                                 fmt(char) .. "> in `" .. fmt(c) .. "`"))
         end
+
         return char(code)
     end)
+
     return result
 end
-
---[[
-    local e = encode("がんばれ")
-    local io = require "io"
-    local file = io.open("encode.txt", "wb")
-    file:write(e)
-    file:close()
-
-    local file = io.open("decode.txt", "wb")
-    file:write(decode(e))
-    file:close()
-]]
 
 return {encode = encode, decode = decode}
